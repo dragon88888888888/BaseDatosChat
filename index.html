@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Asistente de Base de Datos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/lucide-vue-next"></script>
+    <style>
+      .contenedor-chat {
+        height: calc(80vh - 20vh);
+        scrollbar-width: thin;
+      }
+      .contenedor-chat::-webkit-scrollbar {
+        width: 8px;
+      }
+      .contenedor-chat::-webkit-scrollbar-track {
+        background: #f1f1f1;
+      }
+      .contenedor-chat::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 4px;
+      }
+      .mensaje {
+        max-width: 85%;
+        margin: 10px;
+        padding: 12px;
+        border-radius: 12px;
+        animation: aparecer 0.3s ease-in;
+      }
+      @keyframes aparecer {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .codigo-sql {
+        background-color: #1e1e1e;
+        color: #d4d4d4;
+        padding: 12px;
+        border-radius: 8px;
+        font-family: monospace;
+        margin: 8px 0;
+        position: relative;
+        white-space: pre-wrap;
+      }
+      .boton-copiar {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        padding: 4px 8px;
+        background: #2d2d2d;
+        border-radius: 4px;
+        cursor: pointer;
+        opacity: 0;
+        transition: opacity 0.2s;
+        color: #fff;
+      }
+      .codigo-sql:hover .boton-copiar {
+        opacity: 1;
+      }
+      .notificacion {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        padding: 10px 20px;
+        border-radius: 8px;
+        background-color: #10b981;
+        color: white;
+        animation: slideIn 0.3s ease-out;
+      }
+      @keyframes slideIn {
+        from {
+          transform: translateX(100%);
+        }
+        to {
+          transform: translateX(0);
+        }
+      }
+    </style>
+  </head>
+  <body class="bg-[#f4f1eb]">
+    <div id="app" class="max-w-6xl mx-auto p-8">
+      <!-- Header con Navegación -->
+      <nav
+        class="flex items-center justify-between mb-8 bg-white shadow-md p-4 fixed top-0 left-0 w-full z-10"
+      >
+        <div class="flex items-center space-x-8">
+          <span class="text-lg font-medium">SQLogue</span>
+          <div class="flex space-x-6 text-sm text-gray-600">
+            <button
+              v-for="panel in paneles"
+              :key="panel"
+              @click="panelActivo = panel"
+              :class="['hover:text-black transition-colors', panelActivo === panel ? 'text-black font-medium' : '']"
+            >
+              {{ panel }}
+            </button>
+          </div>
+        </div>
+        <div class="flex items-center space-x-4 text-sm text-gray-500">
+          <button
+            @click="mostrarAyuda = !mostrarAyuda"
+            class="hover:text-black transition-colors"
+          >
+            {{ mostrarAyuda ? 'Ocultar Ayuda' : 'Mostrar Ayuda' }}
+          </button>
+          <button class="hover:text-black transition-colors">
+            Configuración
+          </button>
+        </div>
+      </nav>
+
+      <!-- Contenido principal con padding superior -->
+      <div class="pt-10">
+        <!-- Aquí va el contenido principal -->
+      </div>
+
+      <div class="grid grid-cols-12 gap-8">
+        <!-- Chat y Controles - 8 columnas -->
+        <div class="col-span-8 flex flex-col">
+          <!-- Header del Chat -->
+          <div class="mb-4">
+            <h1 class="text-4xl font-bold mb-2">Asistente SQL</h1>
+            <p class="text-gray-600 text-sm">
+              Consulta tu base de datos usando lenguaje natural
+            </p>
+          </div>
+
+          <!-- Área de Chat -->
+          <div
+            ref="contenedorChat"
+            class="contenedor-chat bg-white rounded-lg border border-gray-200 p-6 mb-4 space-y-6 overflow-y-auto"
+          >
+            <template v-for="(msg, index) in mensajes" :key="index">
+              <div :class="['mensaje', msg.esUsuario ? 'ml-auto' : 'mr-auto']">
+                <!-- Mensaje del Usuario -->
+                <template v-if="msg.esUsuario">
+                  <div class="bg-black text-white px-6 py-3 rounded-lg">
+                    {{ msg.texto }}
+                  </div>
+                </template>
+
+                <!-- Mensaje del Sistema -->
+                <template v-else>
+                  <!-- SQL Query -->
+                  <div
+                    v-if="msg.sql_generado"
+                    class="bg-gray-50 border border-gray-200 rounded-lg mb-3"
+                  >
+                    <div
+                      class="flex items-center justify-between px-4 py-2 border-b border-gray-200"
+                    >
+                      <span class="text-xs text-gray-500">SQL Query</span>
+                      <button
+                        @click="copiarPortapapeles(msg.sql_generado)"
+                        class="text-xs text-gray-400 hover:text-gray-600 flex items-center space-x-1"
+                      >
+                        <span>Copiar</span>
+                      </button>
+                    </div>
+                    <pre
+                      class="text-sm text-gray-800 font-mono p-4 overflow-x-auto"
+                    >
+{{ msg.sql_generado }}</pre
+                    >
+                  </div>
+
+                  <!-- Resultados -->
+                  <div
+                    v-if="msg.resultado && Array.isArray(msg.resultado)"
+                    class="bg-white border border-gray-200 rounded-lg overflow-hidden"
+                  >
+                    <div class="overflow-x-auto">
+                      <table class="w-full">
+                        <thead>
+                          <tr class="bg-gray-50 border-b border-gray-200">
+                            <th
+                              v-for="header in Object.keys(msg.resultado[0])"
+                              :key="header"
+                              class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase"
+                            >
+                              {{ header }}
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr
+                            v-for="(row, rowIdx) in msg.resultado"
+                            :key="rowIdx"
+                            class="border-b border-gray-100"
+                          >
+                            <td
+                              v-for="(value, cellIdx) in row"
+                              :key="cellIdx"
+                              class="px-4 py-2 text-sm text-gray-800"
+                            >
+                              {{ value }}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <!-- Mensaje de Error -->
+                  <div v-if="msg.error" class="text-red-500">
+                    {{ msg.error }}
+                    <div v-if="msg.sugerencia" class="text-gray-600 mt-2">
+                      {{ msg.sugerencia }}
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </template>
+          </div>
+
+          <!-- Input y Controles -->
+          <form @submit.prevent="enviarConsulta" class="space-y-4">
+            <input
+              v-model="consulta"
+              type="text"
+              class="w-full px-6 py-4 bg-white border-2 border-gray-200 rounded-lg focus:outline-none focus:border-black transition-colors"
+              placeholder="Describe tu consulta..."
+              :disabled="cargando"
+            />
+            <button
+              type="submit"
+              class="w-full bg-black text-white py-4 rounded-lg hover:bg-gray-900 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50"
+              :disabled="cargando || !consulta.trim()"
+            >
+              <span v-if="!cargando">Enviar</span>
+              <span v-else>Procesando...</span>
+            </button>
+          </form>
+        </div>
+
+        <!-- Panel Lateral - 4 columnas -->
+        <div class="col-span-4 space-y-6">
+          <!-- Panel de Información -->
+          <div class="bg-white rounded-lg border border-gray-200 p-6">
+            <h3 class="font-medium text-gray-900 mb-4">
+              {{ contenidoPaneles[panelActivo].titulo }}
+            </h3>
+            <div class="space-y-3">
+              <button
+                v-for="(item, idx) in contenidoPaneles[panelActivo].items"
+                :key="idx"
+                @click="panelActivo === 'QUERY' && setConsulta(item)"
+                :class="[
+                  'w-full p-3 text-sm text-left rounded-lg transition-colors',
+                  panelActivo === 'QUERY' 
+                    ? 'text-gray-600 bg-gray-50 hover:bg-gray-100' 
+                    : 'text-gray-600 bg-gray-50'
+                ]"
+              >
+                {{ item }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Visualización -->
+          <div
+            class="bg-gradient-to-br from-orange-100 via-blue-100 to-purple-100 rounded-lg p-6 h-64"
+          >
+            <div
+              v-if="panelActivo === 'DATA'"
+              class="h-full flex items-center justify-center"
+            >
+              <div class="text-center text-gray-600">
+                <p>Visualización de datos</p>
+              </div>
+            </div>
+            <div
+              v-else
+              class="h-full flex items-center justify-center opacity-60"
+            >
+              <svg class="w-full h-full" viewBox="0 0 400 400">
+                <!-- Círculos decorativos -->
+                <circle
+                  cx="200"
+                  cy="200"
+                  r="150"
+                  fill="none"
+                  stroke="rgba(66, 153, 225, 0.6)"
+                  stroke-width="2"
+                />
+                <circle
+                  cx="200"
+                  cy="200"
+                  r="100"
+                  fill="none"
+                  stroke="rgba(159, 122, 234, 0.6)"
+                  stroke-width="2"
+                />
+                <circle
+                  cx="200"
+                  cy="200"
+                  r="50"
+                  fill="none"
+                  stroke="rgba(236, 201, 75, 0.6)"
+                  stroke-width="2"
+                />
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notificación -->
+      <div v-if="mostrarNotificacion" class="notificacion">
+        Código SQL copiado al portapapeles
+      </div>
+    </div>
+
+    <script>
+      const { createApp } = Vue;
+
+      createApp({
+        data() {
+          return {
+            mensajes: [],
+            consulta: "",
+            cargando: false,
+            mostrarAyuda: false,
+            ws: null,
+            mostrarNotificacion: false,
+            timerNotificacion: null,
+            intentosReconexion: 0,
+            panelActivo: "QUERY",
+            paneles: ["QUERY", "DATA", "TABLES", "AI"],
+            contenidoPaneles: {
+              QUERY: {
+                titulo: "Consultas Frecuentes",
+                items: [
+                  "Muestra todas las tablas de la base de datos",
+                  "Ver los datos de la tabla monumentos",
+                  "Buscar monumentos en México",
+                  "¿Cuáles son los monumentos más antiguos?",
+                ],
+              },
+              DATA: {
+                titulo: "Resumen de Datos",
+                items: [
+                  "Total de registros",
+                  "Distribución por país",
+                  "Estadísticas generales",
+                ],
+              },
+              TABLES: {
+                titulo: "Estructura de Tablas",
+                items: ["monumentos", "visitantes", "mantenimiento"],
+              },
+              AI: {
+                titulo: "Configuración AI",
+                items: [
+                  "Modelo: GPT-4",
+                  "Temperatura: 0.7",
+                  "Máximo tokens: 2000",
+                ],
+              },
+            },
+          };
+        },
+        mounted() {
+          this.conectarWebSocket();
+        },
+        methods: {
+          conectarWebSocket() {
+            try {
+              const protocolo =
+                window.location.protocol === "https:" ? "wss:" : "ws:";
+              const host = window.location.hostname || "localhost";
+              const puerto = 3000;
+
+              if (this.ws && this.ws.readyState !== WebSocket.CLOSED) {
+                this.ws.close();
+              }
+
+              this.ws = new WebSocket(`${protocolo}//${host}:${puerto}/ws`);
+
+              this.ws.onopen = () => {
+                console.log("Conectado al servidor WebSocket");
+                this.intentosReconexion = 0;
+                if (
+                  this.mensajes.length === 0 ||
+                  this.mensajes[this.mensajes.length - 1].error
+                ) {
+                  this.mensajes.push({
+                    esUsuario: false,
+                    texto: "¡Conexión establecida con el servidor!",
+                  });
+                }
+              };
+
+              this.ws.onmessage = (evento) => {
+                const respuesta = JSON.parse(evento.data);
+                this.manejarRespuesta(respuesta);
+                this.cargando = false;
+              };
+
+              this.ws.onclose = (evento) => {
+                console.log("WebSocket desconectado:", evento);
+                this.intentosReconexion++;
+                const tiempoEspera = Math.min(
+                  1000 * Math.pow(2, this.intentosReconexion),
+                  30000
+                );
+
+                this.mensajes.push({
+                  esUsuario: false,
+                  error: "Conexión perdida. Intentando reconectar...",
+                });
+
+                setTimeout(() => this.conectarWebSocket(), tiempoEspera);
+              };
+
+              this.ws.onerror = (error) => {
+                console.error("Error en WebSocket:", error);
+                this.manejarError(
+                  new Error("Error de conexión con el servidor")
+                );
+              };
+            } catch (error) {
+              console.error("Error al establecer conexión:", error);
+              this.manejarError(error);
+            }
+          },
+
+          async enviarConsulta() {
+            if (!this.consulta.trim() || this.cargando) return;
+
+            if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+              this.mensajes.push({
+                esUsuario: false,
+                error: "No hay conexión con el servidor",
+                sugerencia: "Intentando reconectar...",
+              });
+              this.conectarWebSocket();
+              return;
+            }
+
+            this.cargando = true;
+            this.mensajes.push({
+              esUsuario: true,
+              texto: this.consulta,
+            });
+
+            try {
+              this.ws.send(JSON.stringify({ consulta: this.consulta }));
+              this.consulta = "";
+              this.scrollAlFinal();
+            } catch (error) {
+              this.manejarError(error);
+            }
+          },
+
+          manejarRespuesta(respuesta) {
+            if (respuesta.error) {
+              this.mensajes.push({
+                esUsuario: false,
+                error: respuesta.error,
+                sugerencia: respuesta.sugerencia,
+              });
+            } else {
+              this.mensajes.push({
+                esUsuario: false,
+                sql_generado: respuesta.sql_generado,
+                resultado: respuesta.resultado,
+              });
+            }
+            this.scrollAlFinal();
+          },
+
+          manejarError(error) {
+            this.mensajes.push({
+              esUsuario: false,
+              error:
+                error.message ||
+                "Error de conexión. Por favor, intenta de nuevo.",
+              sugerencia: "Asegúrate de que el servidor esté funcionando.",
+            });
+            this.cargando = false;
+            this.scrollAlFinal();
+          },
+
+          scrollAlFinal() {
+            setTimeout(() => {
+              const chat = this.$refs.contenedorChat;
+              chat.scrollTop = chat.scrollHeight;
+            }, 100);
+          },
+
+          async copiarPortapapeles(texto) {
+            try {
+              await navigator.clipboard.writeText(texto);
+              this.mostrarNotificacionCopia();
+            } catch (err) {
+              console.error("Error al copiar:", err);
+              this.mensajes.push({
+                esUsuario: false,
+                error: "No se pudo copiar al portapapeles",
+                sugerencia: "Intenta seleccionar y copiar manualmente",
+              });
+            }
+          },
+
+          mostrarNotificacionCopia() {
+            this.mostrarNotificacion = true;
+
+            if (this.timerNotificacion) {
+              clearTimeout(this.timerNotificacion);
+            }
+
+            this.timerNotificacion = setTimeout(() => {
+              this.mostrarNotificacion = false;
+            }, 2000);
+          },
+
+          setConsulta(texto) {
+            this.consulta = texto;
+          },
+        },
+      }).mount("#app");
+    </script>
+  </body>
+</html>
