@@ -18,7 +18,7 @@
 <br>
 
 <div align="center">
-  <img src="https://via.placeholder.com/800x400?text=BaseDatosChat+Screenshot" alt="BaseDatosChat Screenshot" width="80%"/>
+  <img src="captura.png" alt="BaseDatosChat Screenshot" width="80%"/>
 </div>
 
 ## 🌟 Overview

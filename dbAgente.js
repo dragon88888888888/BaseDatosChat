@@ -18,7 +18,7 @@ export class AgenteDB {
     this.configDB = configDB;
     this.modelo = new ChatGoogleGenerativeAI({
       apiKey: claveAPI,
-      modelName: "gemini-pro"
+      modelName: "gemini-2.0-flash-exp"
     });
     this.pool = null;
     this.metadatos = null;
